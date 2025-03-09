@@ -39,7 +39,6 @@ function loadNodes(data) {
 	for (const node in nodes) {
 		if (nodes[node].adj.length === 0) {
 			delete nodes[node];
-
 		}
 	}
 
@@ -76,77 +75,205 @@ function mapEdges() {
 
 document.querySelector("#start").addEventListener("click", mapEdges);
 
-
-class PriorityQueue {
-	constructor() {
-			this.items = [];
-	}
-
-	enqueue(element, priority) {
-			const queueElement = { element, priority };
-			let added = false;
-
-			for (let i = 0; i < this.items.length; i++) {
-					if (this.items[i].priority > priority) {
-							this.items.splice(i, 0, queueElement);
-							added = true;
-							break;
-					}
-			}
-
-			if (!added) {
-					this.items.push(queueElement);
-			}
-	}
-
-	dequeue() {
-			return this.items.shift().element;
-	}
-
-	isEmpty() {
-			return this.items.length === 0;
-	}
+// Helper function to pause execution for a given time (in ms)
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function dijkstra() {
-	var start = Object.keys(nodes)[0];
-	console.log(nodes[start]);
-	// Step 1: Set up distances, predecessors, and the priority queue
-	let distances = {};  // Holds the shortest distance from the start node
-	let predecessors = {};  // Holds the path to the nodes
-	let pq = new PriorityQueue();  // Priority Queue for processing the nodes
+async function dijkstra() {
+  // Ask the user for the source and target node IDs.
+	const ids = Object.keys(nodes);
+  const sourceId = ids[0];
+  const targetId = ids[ids.length - 1];
+	L.circleMarker([nodes[sourceId].lat, nodes[sourceId].lon], {
+		color: 'black',
+		radius: 5
+	}).addTo(map);
+	L.circleMarker([nodes[targetId].lat, nodes[targetId].lon], {
+		color: 'black',
+		radius: 5
+	}).addTo(map);
 
-	// Step 2: Initialize all distances to infinity, except for the start node
-	for (let node in nodes) {
-			distances[node] = Infinity;
-			predecessors[node] = null;
-	}
-	distances[start] = 0;
-	pq.enqueue(start, 0);  // Enqueue the start node with a distance of 0
+  if (!nodes[sourceId] || !nodes[targetId]) {
+    alert("Invalid node id(s) provided!");
+    return;
+  }
 
-	// Step 3: While there are still nodes to process
-	while (!pq.isEmpty()) {
-			let u = pq.dequeue();  // Get the node with the smallest distance
+  // Initialize distances and previous node record.
+  const distances = {};
+  const prev = {};
+  for (const node in nodes) {
+    distances[node] = Infinity;
+    prev[node] = null;
+  }
+  distances[sourceId] = 0;
 
-			// Step 4: For each neighbor of u
-			for (let neighbor of nodes[u].adj) {
-					let v = neighbor.target;
-					let weight = neighbor.weight;
+  // Array to keep track of branch lines (edges being relaxed) for animation.
+  const branchLayers = [];
 
-					// Calculate the tentative distance to v via u
-					let alt = distances[u] + weight;
+  // Create a list of all node ids (acting as a simple priority queue).
+  let queue = Object.keys(nodes);
 
-					// Step 5: If a shorter path to v is found
-					if (alt < distances[v]) {
-							distances[v] = alt;  // Update the shortest distance
-							predecessors[v] = u;  // Update the predecessor
-							pq.enqueue(v, distances[v]);  // Enqueue the updated distance
-					}
-			}
-	}
+  while (queue.length > 0) {
+    // Sort the queue by current known distances.
+    queue.sort((a, b) => distances[a] - distances[b]);
+    const u = queue.shift();
 
-	// Step 6: Return the result
-	console.log(distances, predecessors);
+    // Animate current processing: add a green marker on node u.
+    const currentMarker = L.circleMarker([nodes[u].lat, nodes[u].lon], {
+      color: 'green',
+      radius: 5
+    }).addTo(map);
+
+    // If the target node is reached, break out of the loop.
+    if (u === targetId) {
+      await sleep(100);
+      map.removeLayer(currentMarker);
+      break;
+    }
+
+    // Process all adjacent edges from node u.
+    for (const edge of nodes[u].adj) {
+      const v = edge.target;
+      // Only consider nodes still in the queue.
+      if (!queue.includes(v)) continue;
+      
+      // Ensure the weight is a number.
+      const weight = parseFloat(edge.weight);
+      const alt = distances[u] + weight;
+      if (alt < distances[v]) {
+        distances[v] = alt;
+        prev[v] = u;
+
+        // Animate the edge relaxation by drawing a yellow branch line.
+        const branchLine = L.polyline(
+          [
+            [nodes[u].lat, nodes[u].lon],
+            [nodes[v].lat, nodes[v].lon]
+          ],
+          {
+            color: "blue",
+            weight: 2,
+            opacity: 0.7,
+          }
+        ).addTo(map);
+        branchLayers.push(branchLine);
+      }
+    }
+
+    // Wait a moment so the animation is visible, then remove the marker.
+    await sleep(100);
+    map.removeLayer(currentMarker);
+  }
+
+  // Reconstruct the shortest path by backtracking from the target.
+  const path = [];
+  let u = targetId;
+  if (prev[u] !== null || u === sourceId) {
+    while (u !== null) {
+      path.unshift(u);
+      u = prev[u];
+    }
+  } else {
+    alert("No path found from " + sourceId + " to " + targetId + "!");
+    return;
+  }
+
+  // Remove all branch lines (exploration paths) from the map.
+  branchLayers.forEach(layer => {
+    map.removeLayer(layer);
+  });
+
+  // Draw the final shortest path on the map as a blue polyline.
+  const latLngs = path.map(nodeId => [nodes[nodeId].lat, nodes[nodeId].lon]);
+  L.polyline(latLngs, {
+    color: "blue",
+    weight: 4,
+    opacity: 1,
+  }).addTo(map);
+
+  alert("Shortest path distance: " + distances[targetId]);
 }
+
+// The event listener for the dijkstra button remains unchanged.
+document.querySelector("#dijkstra").addEventListener("click", dijkstra);
+
+
 
 document.querySelector("#dijkstra").addEventListener("click", dijkstra);
+
+async function minimumSpanningTree() {
+  const nodeIds = Object.keys(nodes);
+  if (nodeIds.length === 0) {
+    alert("No nodes available!");
+    return;
+  }
+
+  // Start from an arbitrary node.
+  const startId = nodeIds[0];
+  const visited = new Set();
+  visited.add(startId);
+
+  // Array to store edges that become part of the MST.
+  const mstEdges = [];
+  const mstLayers = [];
+
+  // Priority queue: array of candidate edges.
+  const edgeQueue = [];
+
+  // Add all edges from a given node to the queue.
+  function addEdges(nodeId) {
+    for (const edge of nodes[nodeId].adj) {
+      if (!visited.has(edge.target)) {
+        edgeQueue.push({
+          source: nodeId,
+          target: edge.target,
+          weight: parseFloat(edge.weight)
+        });
+      }
+    }
+  }
+
+  addEdges(startId);
+
+  while (visited.size < nodeIds.length && edgeQueue.length > 0) {
+    // Sort candidate edges by weight.
+    edgeQueue.sort((a, b) => a.weight - b.weight);
+    // Get the edge with the smallest weight.
+    const edge = edgeQueue.shift();
+    if (visited.has(edge.target)) {
+      continue; // Skip if the target node is already visited.
+    }
+    
+    // Add the edge to the MST.
+    mstEdges.push(edge);
+    visited.add(edge.target);
+    addEdges(edge.target);
+
+    // Animate the MST edge: draw a purple line.
+    const polyline = L.polyline(
+      [
+        [nodes[edge.source].lat, nodes[edge.source].lon],
+        [nodes[edge.target].lat, nodes[edge.target].lon]
+      ],
+      {
+        color: "purple",
+        weight: 4,
+        opacity: 1,
+      }
+    ).addTo(map);
+    mstLayers.push(polyline);
+
+    // Optional: animate the newly added node with a blue marker.
+    const marker = L.circleMarker([nodes[edge.target].lat, nodes[edge.target].lon], {
+      color: 'blue',
+      radius: 5
+    }).addTo(map);
+    await sleep(100);
+    map.removeLayer(marker);
+  }
+
+  alert("Minimum spanning tree complete.");
+}
+
+document.querySelector("#mst").addEventListener("click", minimumSpanningTree);
