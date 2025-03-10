@@ -1,11 +1,13 @@
-// -------------------- Map and Node Loading --------------------
+//Available map locations
 const places = [
   ["salt.graphml", [40.744183, -111.926158]],
   ["charleston.graphml", [32.766927, -79.973006]],
 	["kathmandu.graphml", [27.705155, 85.326990]],
 ];
 
+// Initialize the map with select element's first location using leaflet.js
 const selectElem = document.getElementById("placeSelect");
+
 
 var placeidx = Number(selectElem.value);
 var place = places[placeidx];
@@ -20,9 +22,12 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
 }).addTo(map);
 
+
+// Global variables to store graph
 let nodes = {};
 let drawnNodes = [];
 
+// Function to load nodes when load button is clicked
 function loadNodes(data) {
 	for (const node of drawnNodes) map.removeLayer(node);
 	nodes = {};
@@ -31,11 +36,12 @@ function loadNodes(data) {
 	map.setView(placepos, 14);
 
   const graphmlData = data;
+
   // Parse the XML data
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(graphmlData, "text/xml");
 
-  // Build mappings for node and edge keys by attribute name.
+	// Get the keys for the attributes
   const nodeKeys = {};
   const edgeKeys = {};
   const keyElements = xmlDoc.getElementsByTagName("key");
@@ -50,45 +56,42 @@ function loadNodes(data) {
     }
   }
 
-  // For nodes, use attribute names "y" for latitude and "x" for longitude.
+  // "y" for latitude and "x" for longitude.
   const yKey = nodeKeys["y"];
   const xKey = nodeKeys["x"];
 
-  // For edges, use "length" as the weight.
+  // "length" key to get road distance
   const lengthKey = edgeKeys["length"];
 
-  // Get all nodes
+  // Store the nodes with empty adjancency list
   const nodeElements = xmlDoc.getElementsByTagName("node");
   for (const nodeElem of nodeElements) {
     const nodeId = nodeElem.getAttribute("id");
-    // Use the keys based on attribute names instead of hardcoding d1/d2.
     const lat = nodeElem.querySelector(`data[key="${yKey}"]`).textContent;
     const lon = nodeElem.querySelector(`data[key="${xKey}"]`).textContent;
     nodes[nodeId] = { lat: parseFloat(lat), lon: parseFloat(lon), adj: [] };
   }
 
-  // Get all edges
+  // Add the edges to the adjacency list
   const edgeElements = xmlDoc.getElementsByTagName("edge");
   for (const edge of edgeElements) {
     const source = edge.getAttribute("source");
     const target = edge.getAttribute("target");
-    // Use the key for "length" instead of hardcoding d11.
     const weight = edge.querySelector(`data[key="${lengthKey}"]`).textContent;
 
-    // Store edge data for both directions
+		// Undirected graph so edges on both ends
     nodes[source].adj.push({ target: target, weight: weight });
     nodes[target].adj.push({ target: source, weight: weight });
   }
 
-  // Remove any nodes with no adjacent edges
+	// Remove nodes with no edges
   for (const node in nodes) {
     if (nodes[node].adj.length === 0) {
       delete nodes[node];
     }
   }
 
-  // Draw red markers for each node with a tooltip for the node id.
-  // Markers are now a bit bigger (radius 3) and respond to click events.
+	// Display the nodes on map with red markers and ID tooltip
   for (const node in nodes) {
     const lat = nodes[node].lat;
     const lon = nodes[node].lon;
@@ -99,10 +102,9 @@ function loadNodes(data) {
       .bindTooltip(node, { direction: "top" })
       .addTo(map);
 
-    // Save the node id in the marker.
     marker.nodeId = node;
 
-    // On click: copy id to clipboard and let user choose start/end.
+		// Event listener to copy and select node ID
     marker.on("click", function (e) {
       const nodeId = this.nodeId;
       navigator.clipboard.writeText(nodeId);
@@ -117,10 +119,13 @@ function loadNodes(data) {
         document.getElementById("endNode").value = nodeId;
       }
     });
+
+		// Add the marker to the drawnNodes array so that it can be removed later if needed
 		drawnNodes.push(marker);
   }
 }
 
+// Fetch the graphml file using the select element value and call loadNodes
 document.getElementById("load").addEventListener("click", async function () {
   placeidx = Number(selectElem.value);
   place = places[placeidx];
@@ -130,14 +135,14 @@ document.getElementById("load").addEventListener("click", async function () {
   try {
     const response = await fetch(placename);
     const data = await response.text();
-    loadNodes(data); // Ensure nodes are loaded immediately after fetching
+    loadNodes(data);
   } catch (error) {
     console.error("Error loading graph file:", error);
   }
 });
 
 
-// -------------------- Edge Mapping (Start Button) --------------------
+// Map the edges on clicking start button
 function mapEdges() {
   for (const node in nodes) {
     for (const adj of nodes[node].adj) {
@@ -157,7 +162,7 @@ function mapEdges() {
 
 document.querySelector("#start").addEventListener("click", mapEdges);
 
-// -------------------- Priority Queue Class --------------------
+//Priority queue that stores nodes with their current best edge or path weight and the edge parent
 class PriorityQueue {
   constructor() {
     this.heap = [];
@@ -176,10 +181,10 @@ class PriorityQueue {
     this.indices.set(this.heap[j].node, j);
   }
 
-  bubbleUp(i) {
+  heapifyUp(i) {
     while (i > 0) {
-      let parent = Math.floor((i - 1) / 2);
-      if (this.heap[i].priority < this.heap[parent].priority) {
+      const parent = Math.floor((i - 1) / 2);
+      if (this.heap[i].weight < this.heap[parent].weight) {
         this.swap(i, parent);
         i = parent;
       } else {
@@ -188,19 +193,16 @@ class PriorityQueue {
     }
   }
 
-  bubbleDown(i) {
+  heapifyDown(i) {
     const n = this.heap.length;
     while (true) {
       let left = 2 * i + 1;
       let right = 2 * i + 2;
       let smallest = i;
-      if (left < n && this.heap[left].priority < this.heap[smallest].priority) {
+      if (left < n && this.heap[left].weight < this.heap[smallest].weight) {
         smallest = left;
       }
-      if (
-        right < n &&
-        this.heap[right].priority < this.heap[smallest].priority
-      ) {
+      if (right < n && this.heap[right].weight < this.heap[smallest].weight) {
         smallest = right;
       }
       if (smallest !== i) {
@@ -212,19 +214,20 @@ class PriorityQueue {
     }
   }
 
-  enqueue(node, priority) {
+  enqueue(node, weight, parent = null) {
     if (this.indices.has(node)) {
-      let i = this.indices.get(node);
-      if (priority < this.heap[i].priority) {
-        this.heap[i].priority = priority;
-        this.bubbleUp(i);
+      const index = this.indices.get(node);
+      if (weight < this.heap[index].weight) {
+        this.heap[index].weight = weight;
+        this.heap[index].parent = parent;
+        this.heapifyUp(index);
       }
     } else {
-      const entry = { node, priority };
+      const entry = { node, weight, parent };
       this.heap.push(entry);
-      let i = this.heap.length - 1;
-      this.indices.set(node, i);
-      this.bubbleUp(i);
+      const index = this.heap.length - 1;
+      this.indices.set(node, index);
+      this.heapifyUp(index);
     }
   }
 
@@ -233,16 +236,17 @@ class PriorityQueue {
     const min = this.heap[0];
     const last = this.heap.pop();
     this.indices.delete(min.node);
-    if (this.heap.length > 0) {
+    if (!this.isEmpty()) {
       this.heap[0] = last;
       this.indices.set(last.node, 0);
-      this.bubbleDown(0);
+      this.heapifyDown(0);
     }
     return min;
   }
 }
 
-// -------------------- Global Variables and Helpers --------------------
+
+// Other helper functions and variables
 const delay = 100;
 let drawnLayers = [];
 
@@ -258,266 +262,3 @@ document.querySelector("#clear").addEventListener("click", clearDrawnPaths);
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-// -------------------- Dijkstra's Algorithm Using PriorityQueue --------------------
-async function dijkstra() {
-  const sourceId = document.getElementById("startNode").value;
-  const targetId = document.getElementById("endNode").value;
-
-  if (!sourceId || !targetId) {
-    alert("Please specify both start and end nodes using the input boxes.");
-    return;
-  }
-
-  if (!nodes[sourceId] || !nodes[targetId]) {
-    alert("Invalid node id(s) provided!");
-    return;
-  }
-
-  alert("Dijkstra's algorithm:\nStart: " + sourceId + "\nEnd: " + targetId);
-
-  const sourceMarker = L.circleMarker(
-    [nodes[sourceId].lat, nodes[sourceId].lon],
-    {
-      color: "green",
-      radius: 5,
-      fillColor: "green",
-      fillOpacity: 1,
-    }
-  ).addTo(map);
-
-  const distances = {};
-  const prev = {};
-  for (const node in nodes) {
-    distances[node] = Infinity;
-    prev[node] = null;
-  }
-  distances[sourceId] = 0;
-
-  const pq = new PriorityQueue();
-  for (const node in nodes) {
-    pq.enqueue(node, distances[node]);
-  }
-
-  const branchLayers = [];
-
-  while (!pq.isEmpty()) {
-    const { node: u } = pq.dequeue();
-
-    const currentMarker = L.circleMarker([nodes[u].lat, nodes[u].lon], {
-      color: "green",
-      radius: 5,
-    }).addTo(map);
-
-    if (u === targetId) {
-      await sleep(delay);
-      map.removeLayer(currentMarker);
-      break;
-    }
-
-    for (const edge of nodes[u].adj) {
-      const v = edge.target;
-      const weight = parseFloat(edge.weight);
-      const alt = distances[u] + weight;
-      if (alt < distances[v]) {
-        distances[v] = alt;
-        prev[v] = u;
-        pq.enqueue(v, alt);
-        const branchLine = L.polyline(
-          [
-            [nodes[u].lat, nodes[u].lon],
-            [nodes[v].lat, nodes[v].lon],
-          ],
-          { color: "blue", weight: 2, opacity: 0.7 }
-        ).addTo(map);
-        branchLayers.push(branchLine);
-      }
-    }
-
-    await sleep(delay);
-    map.removeLayer(currentMarker);
-  }
-
-  const path = [];
-  let u = targetId;
-  if (prev[u] !== null || u === sourceId) {
-    while (u !== null) {
-      path.unshift(u);
-      u = prev[u];
-    }
-  } else {
-    alert("No path found from " + sourceId + " to " + targetId + "!");
-    return;
-  }
-
-  branchLayers.forEach((layer) => map.removeLayer(layer));
-
-  // Draw the parent tree
-  for (const node in nodes) {
-    if (prev[node] !== null) {
-      const parentEdge = L.polyline(
-        [
-          [nodes[node].lat, nodes[node].lon],
-          [nodes[prev[node]].lat, nodes[prev[node]].lon],
-        ],
-        { color: "blue", weight: 2, opacity: 1 }
-      ).addTo(map);
-      drawnLayers.push(parentEdge);
-    }
-  }
-
-  // Draw the final shortest path
-  const latLngs = path.map((nodeId) => [nodes[nodeId].lat, nodes[nodeId].lon]);
-  const finalPath = L.polyline(latLngs, {
-    color: "yellow",
-    weight: 4,
-    opacity: 1,
-  }).addTo(map);
-  drawnLayers.push(finalPath);
-
-  // Mark the source and destination
-  const targetMarker = L.circleMarker(
-    [nodes[targetId].lat, nodes[targetId].lon],
-    {
-      color: "red",
-      radius: 5,
-      fillColor: "red",
-      fillOpacity: 1,
-    }
-  ).addTo(map);
-  drawnLayers.push(sourceMarker);
-  drawnLayers.push(targetMarker);
-
-  alert("Shortest path distance: " + distances[targetId]);
-}
-
-document.querySelector("#dijkstra").addEventListener("click", dijkstra);
-
-// -------------------- Minimum Spanning Tree (Prim's) --------------------
-async function minimumSpanningTree() {
-  const nodeIds = Object.keys(nodes);
-  if (nodeIds.length === 0) {
-    alert("No nodes available!");
-    return;
-  }
-
-  const startId = nodeIds[0];
-  const visited = new Set();
-  visited.add(startId);
-
-  const edgeQueue = [];
-
-  function addEdges(nodeId) {
-    for (const edge of nodes[nodeId].adj) {
-      if (!visited.has(edge.target)) {
-        edgeQueue.push({
-          source: nodeId,
-          target: edge.target,
-          weight: parseFloat(edge.weight),
-        });
-      }
-    }
-  }
-
-  addEdges(startId);
-
-  while (visited.size < nodeIds.length && edgeQueue.length > 0) {
-    edgeQueue.sort((a, b) => a.weight - b.weight);
-    const edge = edgeQueue.shift();
-    if (visited.has(edge.target)) continue;
-
-    visited.add(edge.target);
-    addEdges(edge.target);
-
-    const polyline = L.polyline(
-      [
-        [nodes[edge.source].lat, nodes[edge.source].lon],
-        [nodes[edge.target].lat, nodes[edge.target].lon],
-      ],
-      { color: "purple", weight: 4, opacity: 1 }
-    ).addTo(map);
-    drawnLayers.push(polyline);
-
-    const marker = L.circleMarker(
-      [nodes[edge.target].lat, nodes[edge.target].lon],
-      {
-        color: "blue",
-        radius: 5,
-      }
-    ).addTo(map);
-    await sleep(delay);
-    map.removeLayer(marker);
-  }
-
-  alert("Minimum spanning tree complete.");
-}
-
-document.querySelector("#mst").addEventListener("click", minimumSpanningTree);
-
-// -------------------- Kruskal's Algorithm --------------------
-async function kruskal() {
-  const edges = [];
-  const seen = new Set();
-  for (const source in nodes) {
-    for (const edge of nodes[source].adj) {
-      const target = edge.target;
-      const key =
-        source < target ? source + "_" + target : target + "_" + source;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      edges.push({
-        source: source,
-        target: target,
-        weight: parseFloat(edge.weight),
-      });
-    }
-  }
-
-  edges.sort((a, b) => a.weight - b.weight);
-
-  const parent = {};
-  const rank = {};
-  for (const node in nodes) {
-    parent[node] = node;
-    rank[node] = 0;
-  }
-  function find(n) {
-    if (parent[n] !== n) {
-      parent[n] = find(parent[n]);
-    }
-    return parent[n];
-  }
-  function union(n1, n2) {
-    const root1 = find(n1);
-    const root2 = find(n2);
-    if (root1 === root2) return false;
-    if (rank[root1] < rank[root2]) {
-      parent[root1] = root2;
-    } else if (rank[root1] > rank[root2]) {
-      parent[root2] = root1;
-    } else {
-      parent[root2] = root1;
-      rank[root1]++;
-    }
-    return true;
-  }
-
-  for (const edge of edges) {
-    if (find(edge.source) !== find(edge.target)) {
-      union(edge.source, edge.target);
-      const polyline = L.polyline(
-        [
-          [nodes[edge.source].lat, nodes[edge.source].lon],
-          [nodes[edge.target].lat, nodes[edge.target].lon],
-        ],
-        { color: "blue", weight: 4, opacity: 1 }
-      ).addTo(map);
-      drawnLayers.push(polyline);
-      await sleep(delay);
-    }
-  }
-
-  alert("Kruskal's MST complete.");
-}
-
-document.querySelector("#kruskal").addEventListener("click", kruskal);
