@@ -18,9 +18,18 @@
 <body>
 	
 	<div id="map"></div>
-	<button id="start">Start</button>
+	<button id="start">Show Edges</button>
 	<button id="dijkstra">Dijkstra</button>
 	<button id="mst">MST</button>
+	<button id="kruskal">Kruskal</button>
+	<button id="clear">Clear Edges</button>
+	<!-- Place these below your map container -->
+	<div id="nodeInputs">
+		<label for="startNode">Start Node:</label>
+		<input type="text" id="startNode" readonly>
+		<label for="endNode">End Node:</label>
+		<input type="text" id="endNode" readonly>
+	</div>
 
 	<script src="index.js"></script>
 	
