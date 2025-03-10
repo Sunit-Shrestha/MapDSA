@@ -1,37 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-	integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-	crossorigin=""/>
-	<link rel="stylesheet" href="styles.css">
-
-	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-	integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-	crossorigin=""></script>
-
-	<title>Map</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <title>Map Visualizer</title>
 </head>
 <body>
-	
-	<div id="map"></div>
-	<button id="start">Show Edges</button>
-	<button id="dijkstra">Dijkstra</button>
-	<button id="mst">MST</button>
-	<button id="kruskal">Kruskal</button>
-	<button id="clear">Clear Edges</button>
-	<!-- Place these below your map container -->
-	<div id="nodeInputs">
-		<label for="startNode">Start Node:</label>
-		<input type="text" id="startNode" readonly>
-		<label for="endNode">End Node:</label>
-		<input type="text" id="endNode" readonly>
-	</div>
-
-	<script src="index.js"></script>
-	
+  <header>
+    <h1>Map Visualizer</h1>
+  </header>
+  <div id="map"></div>
+  <div id="controls">
+		<select id="placeSelect" name="place">
+			<option value="0">Salt Lake City</option>
+			<option value="1">Charleston</option>
+			<option value="2">Kathmandu</option>
+		</select>
+		<button id="load" class="btn">Load Map</button>
+    <button id="start" class="btn">Show Edges</button>
+    <button id="dijkstra" class="btn">Dijkstra</button>
+    <button id="mst" class="btn">MST</button>
+    <button id="kruskal" class="btn">Kruskal</button>
+    <button id="clear" class="btn">Clear</button>
+    <div id="nodeInputs">
+      <label for="startNode">Start Node:</label>
+      <input type="text" id="startNode" readonly>
+      <label for="endNode">End Node:</label>
+      <input type="text" id="endNode" readonly>
+    </div>
+  </div>
+  <script src="index.js"></script>
 </body>
 </html>
