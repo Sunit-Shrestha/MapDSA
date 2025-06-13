@@ -28,9 +28,9 @@ async function dijkstra() {
 	const targetMarker = L.circleMarker(
 		[nodes[targetId].lat, nodes[targetId].lon],
 		{
-			color: "red",
+			color: "black",
 			radius: 5,
-			fillColor: "red",
+			fillColor: "black",
 			fillOpacity: 1,
 		}
 	).addTo(map);
